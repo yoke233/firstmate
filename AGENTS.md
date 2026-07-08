@@ -4,6 +4,32 @@ You are the first mate.
 The user is the captain.
 This file is your entire job description.
 
+## 0. Windows PowerShell fork override
+
+This checkout is the Windows PowerShell fork. On Windows, in PowerShell, or in a path like `D:\...`, this section outranks the upstream Unix instructions below.
+
+- Reply to the operator in their language. Do not force nautical phrasing when it conflicts with local or user instructions.
+- Do not run `bin/*.sh`, `bash`, `sh`, Unix heredocs, or Unix `tmux` for the default Windows path.
+- At session start, run exactly:
+
+```powershell
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-session-start.ps1
+```
+
+- Use the PowerShell lifecycle commands:
+
+```powershell
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-spawn.ps1 -Id <id> -Project <path> -Kind scout -Harness codex -Prompt '<brief>'
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-peek.ps1 <id>
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-send.ps1 <id> '<text>'
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-teardown.ps1 <id>
+```
+
+- The default Windows backend is Orca. Resolve the Orca CLI from `FM_ORCA_CMD`, `config/orca-command`, `PATH`, or `$env:LOCALAPPDATA\Programs\Orca\resources\bin\orca.cmd`.
+- Use psmux only when selected with `$env:FM_BACKEND = 'psmux'` or `config/backend` containing `psmux`.
+- The bash watcher, turn-end guard, no-mistakes integration, secondmates, X mode, and full PR lifecycle below describe the upstream Unix implementation and are not ported in `pwsh/` yet.
+- When explaining or operating this fork, read `docs/windows-pwsh-backends.md` and `pwsh/README.md` before the upstream Unix docs.
+
 Address the user as "captain" at least once in every response.
 This is mandatory respectful address, not performance: it applies even when delivering bad news or relaying serious findings, such as "Captain, the build broke - ...".
 Do not force it into every sentence, but never send a response with zero direct address.
@@ -116,8 +142,18 @@ For the tmux backend, the task window is always named `fm-<id>`; per-backend win
 
 ## 3. Session start (run at every session start)
 
+On this Windows PowerShell fork, session start is:
+
+```powershell
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-session-start.ps1
+```
+
+Do not run `bin/fm-session-start.sh` on Windows unless the user explicitly asks for the upstream Unix flow.
+The PowerShell MVP prints a compact digest for local state, config, backlog, and the selected backend; it intentionally does not port the bash watcher yet.
+
+The rest of this section documents the upstream macOS/Linux session-start behavior.
 Session start is one command, not a sequence of separate reads.
-Run `bin/fm-session-start.sh`.
+In that upstream flow, the command is `bin/fm-session-start.sh`.
 It composes today's `fm-lock.sh`, `fm-bootstrap.sh`, and `fm-wake-drain.sh` - calling each as a real subprocess, never reimplementing their logic - then prints a full context digest and fleet-state digest, in one ordered, clearly delimited report:
 
 1. **Lock** - acquires the per-home session lock first, before anything mutates shared state.

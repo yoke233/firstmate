@@ -54,6 +54,33 @@ Full detail on every feature lives in [docs/architecture.md](docs/architecture.m
 
 ## Quick Start
 
+### Windows PowerShell fork
+
+This fork's Windows path avoids WSL, MSYS2, bash, and Unix tmux.
+It defaults to Orca and can fall back to psmux when selected.
+
+```powershell
+git clone https://github.com/yoke233/firstmate firstmate-pwsh
+cd firstmate-pwsh
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-session-start.ps1
+codex
+```
+
+If Codex is already open in this checkout, `AGENTS.md` should make it run the same PowerShell session-start command.
+If you see it trying `bin/fm-session-start.sh`, refresh the session after pulling this fork branch.
+
+Orca is discovered from `FM_ORCA_CMD`, `config/orca-command`, `PATH`, or `%LOCALAPPDATA%\Programs\Orca\resources\bin\orca.cmd`.
+To use psmux instead:
+
+```powershell
+$env:FM_BACKEND = 'psmux'
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-session-start.ps1
+```
+
+See [docs/windows-pwsh-backends.md](docs/windows-pwsh-backends.md) for the current Windows scope and limits.
+
+### Upstream macOS/Linux
+
 **Requirements:** a verified agent harness (claude, codex, opencode, pi, or grok), git with GitHub auth, and tmux for the reference session backend.
 The first mate detects and offers to install everything else.
 

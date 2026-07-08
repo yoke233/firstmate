@@ -13,3 +13,14 @@ It is intentionally smaller than the upstream `bin/*.sh` implementation:
 - `fm-teardown.ps1` removes a scout task or force-removes a reviewed ship task.
 
 Use this as a Windows adaptation layer, not as a complete firstmate replacement yet.
+
+## Agent startup
+
+When Codex or another coding agent opens this checkout on Windows, it should follow the Windows override at the top of `AGENTS.md` and run:
+
+```powershell
+pwsh -NoLogo -NoProfile -File .\pwsh\fm-session-start.ps1
+```
+
+If the agent starts with `bin/fm-session-start.sh`, it is following stale upstream Unix instructions.
+Pull the latest branch and restart the agent session so it rereads `AGENTS.md`.

@@ -69,6 +69,9 @@ From this repository:
 pwsh .\pwsh\fm-session-start.ps1
 ```
 
+When a coding agent starts in this checkout, the Windows override at the top of `AGENTS.md` is the authoritative startup path.
+If the agent tries `bin/fm-session-start.sh`, restart it after pulling this branch so it rereads the updated instructions.
+
 Use a custom psmux session name when you select the psmux backend and do not want to share the default `firstmate` session:
 
 ```powershell
