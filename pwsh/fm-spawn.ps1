@@ -12,6 +12,9 @@ param(
     [ValidateSet('codex', 'claude', 'opencode', 'pi', 'grok', 'manual')]
     [string] $Harness = 'codex',
 
+    [ValidateSet('orca', 'psmux')]
+    [string] $Backend,
+
     [string] $Prompt,
 
     [string] $LaunchCommand,
@@ -34,6 +37,9 @@ if ([string]::IsNullOrWhiteSpace($Id)) {
     $basis = if ($Prompt) { $Prompt } else { Split-Path -Leaf $projectPath }
     $Id = New-FmTaskId -Title $basis
 }
+if ([string]::IsNullOrWhiteSpace($Backend)) {
+    $Backend = Get-FmBackend
+}
 
 $taskDir = Join-FmPath -Kind data -Child $Id
 New-Item -ItemType Directory -Force -Path $taskDir | Out-Null
@@ -54,33 +60,48 @@ Append concise status lines to state/$Id.status when the state changes.
 
 Set-Content -LiteralPath $briefPath -Value $Prompt -Encoding utf8
 
-$worktreeRoot = Join-FmPath -Kind worktrees
-$worktreePath = Join-Path -Path $worktreeRoot -ChildPath $Id
-if (Test-Path -LiteralPath $worktreePath) {
-    throw "Worktree path already exists: $worktreePath"
-}
-
-$branch = if ($Kind -eq 'ship') { "fm/$Id" } else { '' }
-if ($Kind -eq 'ship') {
-    & git -C $projectPath worktree add -b $branch $worktreePath HEAD
-} else {
-    & git -C $projectPath worktree add --detach $worktreePath HEAD
-}
-if ($LASTEXITCODE -ne 0) {
-    throw "git worktree add failed for $worktreePath"
-}
-
-$session = Get-FmSessionName
 $window = "fm-$Id"
-$target = New-FmPsmuxWindow -WindowName $window -WorkingDirectory $worktreePath -SessionName $session
+$branch = ''
+$session = ''
+$target = ''
+$terminal = ''
+$orcaWorktreeId = ''
+if ($Backend -eq 'orca') {
+    $orcaTask = New-FmOrcaTask -Name $window -ProjectPath $projectPath
+    $worktreePath = $orcaTask.WorktreePath
+    $orcaWorktreeId = $orcaTask.WorktreeId
+    $terminal = $orcaTask.Terminal
+    $target = $terminal
+} else {
+    $worktreeRoot = Join-FmPath -Kind worktrees
+    $worktreePath = Join-Path -Path $worktreeRoot -ChildPath $Id
+    if (Test-Path -LiteralPath $worktreePath) {
+        throw "Worktree path already exists: $worktreePath"
+    }
+
+    $branch = if ($Kind -eq 'ship') { "fm/$Id" } else { '' }
+    if ($Kind -eq 'ship') {
+        & git -C $projectPath worktree add -b $branch $worktreePath HEAD
+    } else {
+        & git -C $projectPath worktree add --detach $worktreePath HEAD
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "git worktree add failed for $worktreePath"
+    }
+
+    $session = Get-FmSessionName
+    $target = New-FmPsmuxWindow -WindowName $window -WorkingDirectory $worktreePath -SessionName $session
+}
 
 $meta = [ordered]@{
     id = $Id
     kind = $Kind
-    backend = 'psmux'
+    backend = $Backend
     session = $session
     window = $window
     target = $target
+    terminal = $terminal
+    orca_worktree_id = $orcaWorktreeId
     project = $projectPath
     worktree = $worktreePath
     branch = $branch
@@ -91,8 +112,8 @@ $meta = [ordered]@{
 Write-FmMeta -Id $Id -Meta $meta
 
 if ($NoLaunch -or $Harness -eq 'manual') {
-    Add-FmStatus -Id $Id -Line 'parked: psmux window created; launch skipped'
-    "spawned: id=$Id target=$target worktree=$worktreePath launch=skipped"
+    Add-FmStatus -Id $Id -Line "parked: $Backend endpoint created; launch skipped"
+    "spawned: id=$Id backend=$Backend target=$target worktree=$worktreePath launch=skipped"
     return
 }
 
@@ -107,6 +128,10 @@ if ([string]::IsNullOrWhiteSpace($LaunchCommand)) {
     }
 }
 
-Send-FmPsmuxText -Target $target -Text $LaunchCommand
+if ($Backend -eq 'orca') {
+    Send-FmOrcaText -Terminal $target -Text $LaunchCommand
+} else {
+    Send-FmPsmuxText -Target $target -Text $LaunchCommand
+}
 Add-FmStatus -Id $Id -Line "working: launched $Harness"
-"spawned: id=$Id target=$target worktree=$worktreePath harness=$Harness"
+"spawned: id=$Id backend=$Backend target=$target worktree=$worktreePath harness=$Harness"

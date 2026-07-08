@@ -50,17 +50,33 @@ foreach ($tool in @('psmux', 'git', 'gh', 'node', 'jq', 'codex', 'claude')) {
         "MISSING: $tool"
     }
 }
+try {
+    "OK: orca -> $(Get-FmOrcaCommand)"
+} catch {
+    "MISSING: orca ($($_.Exception.Message))"
+}
 
 Write-Output ''
 Write-Output 'BACKEND'
 Write-Output '--------------------------------------------------------------------------------'
-$session = Get-FmSessionName
-if ($NoEnsureBackend) {
-    "PSMUX_SESSION: $session (not ensured because -NoEnsureBackend was passed)"
+$backend = Get-FmBackend
+"BACKEND: $backend"
+if ($backend -eq 'orca') {
+    if ($NoEnsureBackend) {
+        'ORCA: not checked because -NoEnsureBackend was passed'
+    } else {
+        $status = Get-FmOrcaStatus
+        "ORCA_RUNTIME: reachable=$($status.result.runtime.reachable) state=$($status.result.runtime.state) graph=$($status.result.graph.state)"
+    }
 } else {
-    Ensure-FmPsmuxSession -SessionName $session
-    "PSMUX_SESSION: $session"
-    Invoke-FmPsmuxText -Arguments @('list-windows', '-t', $session) -AllowFailure
+    $session = Get-FmSessionName
+    if ($NoEnsureBackend) {
+        "PSMUX_SESSION: $session (not ensured because -NoEnsureBackend was passed)"
+    } else {
+        Ensure-FmPsmuxSession -SessionName $session
+        "PSMUX_SESSION: $session"
+        Invoke-FmPsmuxText -Arguments @('list-windows', '-t', $session) -AllowFailure
+    }
 }
 
 Write-Section 'CONTEXT'

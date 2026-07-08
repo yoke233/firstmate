@@ -12,7 +12,8 @@ Import-Module (Join-Path $PSScriptRoot 'FirstmatePwsh.psm1') -Force -DisableName
 
 $meta = Read-FmMeta -Id $Id
 $kind = $meta['kind']
-$target = Resolve-FmTarget -Selector $Id
+$endpoint = Resolve-FmEndpoint -Selector $Id
+$target = $endpoint.Target
 $worktree = $meta['worktree']
 $project = $meta['project']
 
@@ -27,12 +28,16 @@ if ($kind -eq 'scout' -and -not $Force) {
     }
 }
 
-Invoke-FmPsmux -Arguments @('kill-window', '-t', $target) -AllowFailure
+if ($endpoint.Backend -eq 'orca') {
+    Close-FmOrcaTask -Terminal $meta['terminal'] -WorktreeId $meta['orca_worktree_id']
+} else {
+    Invoke-FmPsmux -Arguments @('kill-window', '-t', $target) -AllowFailure
 
-if (Test-Path -LiteralPath $worktree) {
-    & git -C $project worktree remove --force $worktree
-    if ($LASTEXITCODE -ne 0) {
-        throw "git worktree remove failed for $worktree"
+    if (Test-Path -LiteralPath $worktree) {
+        & git -C $project worktree remove --force $worktree
+        if ($LASTEXITCODE -ne 0) {
+            throw "git worktree remove failed for $worktree"
+        }
     }
 }
 

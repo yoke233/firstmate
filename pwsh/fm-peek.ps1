@@ -10,8 +10,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'FirstmatePwsh.psm1') -Force -DisableNameChecking
 
-$target = Resolve-FmTarget -Selector $Selector
-$lines = Capture-FmPsmuxPane -Target $target
+$endpoint = Resolve-FmEndpoint -Selector $Selector
+if ($endpoint.Backend -eq 'orca') {
+    $lines = Capture-FmOrcaTerminal -Terminal $endpoint.Target -Limit $Tail
+} else {
+    $lines = Capture-FmPsmuxPane -Target $endpoint.Target
+}
 if ($Tail -gt 0) {
     $lines | Select-Object -Last $Tail
 } else {

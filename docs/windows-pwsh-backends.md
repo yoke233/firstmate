@@ -1,4 +1,4 @@
-# Windows PowerShell + psmux backend
+# Windows PowerShell backends
 
 This document describes the experimental Windows-native adaptation in `pwsh/`.
 
@@ -11,7 +11,7 @@ The MVP keeps four firstmate ideas:
 - one primary agent talks to the user;
 - each task gets a separate git worktree;
 - task state is durable on disk under `state/` and `data/`;
-- the visible task endpoint is a psmux window controlled from scripts.
+- the visible task endpoint is an Orca terminal by default, or a psmux window when selected.
 
 It does not yet port the full bash watcher, no-mistakes integration, secondmates, X mode, or PR lifecycle.
 
@@ -19,11 +19,12 @@ It does not yet port the full bash watcher, no-mistakes integration, secondmates
 
 - Windows 10 or Windows 11.
 - PowerShell 7+.
-- `psmux` on `PATH`.
+- Orca CLI, discovered from `FM_ORCA_CMD`, `config/orca-command`, `PATH`, or `%LOCALAPPDATA%\Programs\Orca\resources\bin\orca.cmd`.
+- `psmux` on `PATH` only when using the psmux fallback backend.
 - `git`.
 - One supported harness on `PATH`, such as `codex` or `claude`.
 
-Install psmux with one of the upstream-supported methods:
+Install psmux with one of the upstream-supported methods when you want the fallback backend:
 
 ```powershell
 winget install psmux
@@ -38,6 +39,28 @@ scoop install psmux
 
 psmux is a Windows-native Rust terminal multiplexer that exposes tmux-compatible commands such as `new-session`, `new-window`, `send-keys`, and `capture-pane`.
 
+The default backend is Orca.
+Override it with:
+
+```powershell
+$env:FM_BACKEND = 'psmux'
+```
+
+or with local config:
+
+```powershell
+New-Item -ItemType Directory -Force config
+Set-Content config/backend psmux
+```
+
+If Orca is installed outside the default per-user location, set:
+
+```powershell
+$env:FM_ORCA_CMD = 'D:\tools\Orca\resources\bin\orca.cmd'
+```
+
+or write the path into `config/orca-command`.
+
 ## Start
 
 From this repository:
@@ -46,14 +69,14 @@ From this repository:
 pwsh .\pwsh\fm-session-start.ps1
 ```
 
-Use a custom psmux session name when you do not want to share the default `firstmate` session:
+Use a custom psmux session name when you select the psmux backend and do not want to share the default `firstmate` session:
 
 ```powershell
 $env:FM_PSMUX_SESSION = 'firstmate-dev'
 pwsh .\pwsh\fm-session-start.ps1
 ```
 
-Attach to the psmux session when you want to watch panes:
+Attach to the psmux session when you use psmux and want to watch panes:
 
 ```powershell
 psmux attach -t firstmate
@@ -79,12 +102,12 @@ The script creates:
 - `data/<id>/brief.md`;
 - `state/<id>.meta`;
 - `state/<id>.status`;
-- `worktrees/<id>`;
-- a psmux window named `fm-<id>`.
+- an Orca-managed worktree by default, or `worktrees/<id>` when `FM_BACKEND=psmux`;
+- an Orca terminal by default, or a psmux window named `fm-<id>` when `FM_BACKEND=psmux`.
 
 ## Inspect and steer
 
-Capture a task pane:
+Capture a task endpoint:
 
 ```powershell
 pwsh .\pwsh\fm-peek.ps1 inspect-backend
@@ -120,7 +143,8 @@ pwsh .\pwsh\fm-teardown.ps1 feature-task -Force
 
 ## Design notes
 
-psmux is a good fit because it keeps the tmux command surface firstmate already relies on.
+Orca is the default because its Windows CLI can create worktrees and managed terminals directly.
+psmux remains a good fallback because it keeps the tmux command surface firstmate already relies on.
 The PowerShell layer still handles Windows-specific quoting, path handling, and safe metadata writes.
 
 The current scripts use `"${session}:window"` style target construction.
