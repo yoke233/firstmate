@@ -16,6 +16,13 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'FirstmatePwsh.psm1') -Force -DisableNameChecking
 
+if ($Key -and $PSBoundParameters.ContainsKey('Text')) {
+    throw 'Text and -Key cannot be used together.'
+}
+if ($NoEnter -and $Key) {
+    throw '-NoEnter cannot be used with -Key.'
+}
+
 $endpoint = Resolve-FmEndpoint -Selector $Selector
 $target = $endpoint.Target
 if ($Key) {

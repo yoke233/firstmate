@@ -12,6 +12,9 @@ It is intentionally smaller than the upstream `bin/*.sh` implementation:
 - `fm-send.ps1` sends text or keys to a task pane.
 - `fm-teardown.ps1` removes a scout task or force-removes a reviewed ship task.
 
+The Windows lifecycle stops safely when a task id is not path-safe, a selector has no durable task record, a configured backend is unsupported, or endpoint cleanup fails.
+Spawn refuses to overwrite existing task records and removes resources created by a partially failed spawn when possible.
+
 Use this as a Windows adaptation layer, not as a complete firstmate replacement yet.
 
 ## Agent startup

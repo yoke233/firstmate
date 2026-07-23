@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory, Position = 0)]
     [string] $Selector,
 
+    [ValidateRange(1, 10000)]
     [int] $Tail = 80
 )
 
@@ -16,8 +17,4 @@ if ($endpoint.Backend -eq 'orca') {
 } else {
     $lines = Capture-FmPsmuxPane -Target $endpoint.Target
 }
-if ($Tail -gt 0) {
-    $lines | Select-Object -Last $Tail
-} else {
-    $lines
-}
+$lines | Select-Object -Last $Tail

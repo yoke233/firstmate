@@ -42,7 +42,11 @@ Write-Section "SESSION START - $(Get-FmHome)"
 Write-Output ''
 Write-Output 'TOOLCHAIN'
 Write-Output '--------------------------------------------------------------------------------'
-foreach ($tool in @('psmux', 'git', 'gh', 'node', 'jq', 'codex', 'claude')) {
+$backend = Get-FmBackend
+if ($backend -notin @('orca', 'psmux')) {
+    throw "Unsupported Windows backend '$backend'. Expected orca or psmux."
+}
+foreach ($tool in @('git', 'gh', 'node', 'jq', 'codex', 'claude')) {
     $cmd = Get-Command $tool -ErrorAction SilentlyContinue
     if ($cmd) {
         "OK: $tool -> $($cmd.Source)"
@@ -50,16 +54,23 @@ foreach ($tool in @('psmux', 'git', 'gh', 'node', 'jq', 'codex', 'claude')) {
         "MISSING: $tool"
     }
 }
-try {
-    "OK: orca -> $(Get-FmOrcaCommand)"
-} catch {
-    "MISSING: orca ($($_.Exception.Message))"
+if ($backend -eq 'orca') {
+    try {
+        "OK: orca -> $(Get-FmOrcaCommand)"
+    } catch {
+        "MISSING: orca ($($_.Exception.Message))"
+    }
+} else {
+    try {
+        "OK: psmux -> $(Get-FmPsmuxCommand)"
+    } catch {
+        "MISSING: psmux ($($_.Exception.Message))"
+    }
 }
 
 Write-Output ''
 Write-Output 'BACKEND'
 Write-Output '--------------------------------------------------------------------------------'
-$backend = Get-FmBackend
 "BACKEND: $backend"
 if ($backend -eq 'orca') {
     if ($NoEnsureBackend) {
@@ -81,8 +92,10 @@ if ($backend -eq 'orca') {
 
 Write-Section 'CONTEXT'
 Write-FileOrAbsent -Path (Join-FmPath -Kind data -Child 'projects.md') -Label 'data/projects.md'
+Write-FileOrAbsent -Path (Join-FmPath -Kind data -Child 'secondmates.md') -Label 'data/secondmates.md'
 Write-FileOrAbsent -Path (Join-FmPath -Kind data -Child 'backlog.md') -Label 'data/backlog.md'
 Write-FileOrAbsent -Path (Join-FmPath -Kind data -Child 'captain.md') -Label 'data/captain.md'
+Write-FileOrAbsent -Path (Join-FmPath -Kind data -Child 'captain-shared.md') -Label 'data/captain-shared.md'
 Write-FileOrAbsent -Path (Join-FmPath -Kind data -Child 'learnings.md') -Label 'data/learnings.md'
 
 Write-Section 'TASKS'
@@ -93,12 +106,17 @@ if (-not $metaFiles) {
     foreach ($file in $metaFiles) {
         $id = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
         $meta = Read-FmMeta -Id $id
-        $lastStatus = '(no status)'
+        Write-Output ''
+        Write-Output "state/$id.meta"
+        Write-Output '--------------------------------------------------------------------------------'
+        Get-Content -LiteralPath $file.FullName
         $statusPath = Get-FmStatusPath -Id $id
         if (Test-Path -LiteralPath $statusPath) {
-            $lastStatus = Get-Content -LiteralPath $statusPath | Select-Object -Last 1
+            Write-Output "status event history (last 5; full log: $statusPath)"
+            Get-Content -LiteralPath $statusPath | Select-Object -Last 5
+        } else {
+            '(no status event history)'
         }
-        "$id kind=$($meta['kind']) backend=$($meta['backend']) target=$($meta['target']) status=$lastStatus"
     }
 }
 

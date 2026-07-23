@@ -14,6 +14,7 @@ The MVP keeps four firstmate ideas:
 - the visible task endpoint is an Orca terminal by default, or a psmux window when selected.
 
 It does not yet port the full bash watcher, no-mistakes integration, secondmates, X mode, or PR lifecycle.
+It also does not yet hold a cross-process session lock, so only one Windows primary may operate on a given `FM_HOME` at a time.
 
 ## Requirements
 
@@ -150,5 +151,6 @@ Orca is the default because its Windows CLI can create worktrees and managed ter
 psmux remains a good fallback because it keeps the tmux command surface firstmate already relies on.
 The PowerShell layer still handles Windows-specific quoting, path handling, and safe metadata writes.
 
-The current scripts use `"${session}:window"` style target construction.
-In PowerShell, `"$session:window"` is parsed like a scoped variable and produces an empty target.
+Task ids are limited to lowercase letters, digits, and hyphens so they cannot escape `data/` or `state/` paths.
+Send and peek commands require either a durable task record or an explicit Orca/psmux endpoint and never guess a target from an unknown task name.
+Cleanup preserves task records when worktree removal fails so the operator can investigate and retry.

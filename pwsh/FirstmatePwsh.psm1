@@ -263,6 +263,16 @@ function New-FmTaskId {
     "$slug-$suffix"
 }
 
+function Assert-FmTaskId {
+    param([Parameter(Mandatory)][string] $Id)
+
+    if ($Id -cnotmatch '^[a-z0-9](?:[a-z0-9-]{0,62})$') {
+        throw "Invalid task id '$Id'. Use 1-63 lowercase letters, digits, and hyphens."
+    }
+
+    $Id
+}
+
 function Resolve-FmProjectPath {
     param([Parameter(Mandatory)][string] $Project)
 
@@ -291,12 +301,14 @@ function ConvertTo-FmPowerShellLiteral {
 function Get-FmMetaPath {
     param([Parameter(Mandatory)][string] $Id)
 
+    Assert-FmTaskId -Id $Id | Out-Null
     Join-FmPath -Kind state -Child "$Id.meta"
 }
 
 function Get-FmStatusPath {
     param([Parameter(Mandatory)][string] $Id)
 
+    Assert-FmTaskId -Id $Id | Out-Null
     Join-FmPath -Kind state -Child "$Id.status"
 }
 
@@ -348,44 +360,52 @@ function Add-FmStatus {
 function Resolve-FmTarget {
     param([Parameter(Mandatory)][string] $Selector)
 
-    $metaPath = Get-FmMetaPath -Id $Selector
-    if (Test-Path -LiteralPath $metaPath) {
-        $meta = Read-FmMeta -Id $Selector
-        if ($meta.Contains('target')) {
-            return $meta['target']
-        }
-        if ($meta.Contains('session') -and $meta.Contains('window')) {
-            return "$($meta['session']):$($meta['window'])"
+    if ($Selector -cmatch '^[a-z0-9](?:[a-z0-9-]{0,62})$') {
+        $metaPath = Get-FmMetaPath -Id $Selector
+        if (Test-Path -LiteralPath $metaPath) {
+            $meta = Read-FmMeta -Id $Selector
+            if ($meta.Contains('target') -and -not [string]::IsNullOrWhiteSpace($meta['target'])) {
+                return $meta['target']
+            }
+            if ($meta.Contains('session') -and $meta.Contains('window')) {
+                return "$($meta['session']):$($meta['window'])"
+            }
+            throw "Task metadata has no endpoint target: $metaPath"
         }
     }
 
-    if ($Selector.Contains(':') -or $Selector.StartsWith('%')) {
+    if ($Selector -match '^[^:]+:[^:]+$' -or $Selector -match '^%[0-9]+$' -or $Selector -match '^term_[A-Za-z0-9_-]+$') {
         return $Selector
     }
 
-    "$(Get-FmSessionName):$Selector"
+    throw "Task endpoint was not found for '$Selector'. Use a task id recorded under state/, an Orca term_ handle, or an explicit psmux session:window/%pane target."
 }
 
 function Resolve-FmEndpoint {
     param([Parameter(Mandatory)][string] $Selector)
 
-    $metaPath = Get-FmMetaPath -Id $Selector
-    if (Test-Path -LiteralPath $metaPath) {
-        $meta = Read-FmMeta -Id $Selector
-        $backend = if ($meta.Contains('backend')) { $meta['backend'] } else { 'psmux' }
-        $target = if ($meta.Contains('target')) { $meta['target'] } else { Resolve-FmTarget -Selector $Selector }
-        return [pscustomobject]@{
-            Backend = $backend
-            Target = $target
-            Meta = $meta
+    if ($Selector -cmatch '^[a-z0-9](?:[a-z0-9-]{0,62})$') {
+        $metaPath = Get-FmMetaPath -Id $Selector
+        if (Test-Path -LiteralPath $metaPath) {
+            $meta = Read-FmMeta -Id $Selector
+            $backend = if ($meta.Contains('backend')) { $meta['backend'] } else { 'psmux' }
+            if ($backend -notin @('orca', 'psmux')) {
+                throw "Task metadata has unsupported backend '$backend': $metaPath"
+            }
+            $target = Resolve-FmTarget -Selector $Selector
+            return [pscustomobject]@{
+                Backend = $backend
+                Target = $target
+                Meta = $meta
+            }
         }
     }
 
-    $backend = Get-FmBackend
     $target = Resolve-FmTarget -Selector $Selector
     if ($Selector.StartsWith('term_')) {
         $backend = 'orca'
-        $target = $Selector
+    } else {
+        $backend = 'psmux'
     }
 
     [pscustomobject]@{
@@ -427,20 +447,25 @@ function New-FmOrcaTask {
     $worktreeId = $worktree.result.worktree.id
     $worktreePath = $worktree.result.worktree.path
     $terminal = $null
-    if (($worktree.result.PSObject.Properties.Name -contains 'terminal') -and $null -ne $worktree.result.terminal) {
-        if ($worktree.result.terminal.PSObject.Properties.Name -contains 'handle') {
-            $terminal = $worktree.result.terminal.handle
+    try {
+        if (($worktree.result.PSObject.Properties.Name -contains 'terminal') -and $null -ne $worktree.result.terminal) {
+            if ($worktree.result.terminal.PSObject.Properties.Name -contains 'handle') {
+                $terminal = $worktree.result.terminal.handle
+            }
         }
-    }
-    if (-not $terminal) {
-        $terminalResult = Invoke-FmOrcaJson -Arguments @(
-            'terminal', 'create',
-            '--worktree', "id:$worktreeId",
-            '--title', $Name,
-            '--command', 'pwsh -NoLogo -NoProfile',
-            '--json'
-        )
-        $terminal = $terminalResult.result.terminal.handle
+        if (-not $terminal) {
+            $terminalResult = Invoke-FmOrcaJson -Arguments @(
+                'terminal', 'create',
+                '--worktree', "id:$worktreeId",
+                '--title', $Name,
+                '--command', 'pwsh -NoLogo -NoProfile',
+                '--json'
+            )
+            $terminal = $terminalResult.result.terminal.handle
+        }
+    } catch {
+        Invoke-FmOrcaJson -Arguments @('worktree', 'rm', '--worktree', "id:$worktreeId", '--force', '--json') -AllowFailure | Out-Null
+        throw
     }
 
     [pscustomobject]@{
@@ -528,7 +553,7 @@ function Close-FmOrcaTask {
         Invoke-FmOrcaJson -Arguments @('terminal', 'close', '--terminal', $Terminal, '--json') -AllowFailure | Out-Null
     }
     if ($WorktreeId) {
-        Invoke-FmOrcaJson -Arguments @('worktree', 'rm', '--worktree', "id:$WorktreeId", '--force', '--json') -AllowFailure | Out-Null
+        Invoke-FmOrcaJson -Arguments @('worktree', 'rm', '--worktree', "id:$WorktreeId", '--force', '--json') | Out-Null
     }
 }
 
@@ -551,6 +576,7 @@ Export-ModuleMember -Function @(
     'Test-FmPsmuxSession',
     'Ensure-FmPsmuxSession',
     'New-FmTaskId',
+    'Assert-FmTaskId',
     'Resolve-FmProjectPath',
     'ConvertTo-FmPowerShellLiteral',
     'Get-FmMetaPath',
