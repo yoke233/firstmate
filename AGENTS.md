@@ -484,7 +484,8 @@ The scaffold is a safety contract, not a suggestion.
 
 Firstmate's shared instruction surface reaches running homes only after it lands on the default branch and those homes fast-forward.
 Only `AGENTS.md`, `bin/`, and `.agents/skills/` are loaded by a running firstmate; public `skills/` is an installer-facing surface.
-When the captain invokes `/updatefirstmate` or asks to update firstmate, load the `/updatefirstmate` skill.
+On this Windows PowerShell fork, load `update-pwsh-fork` when the captain says "更新" or asks to synchronize upstream and update the PowerShell fork.
+When the captain invokes `/updatefirstmate` or explicitly asks only for a fast-forward update from origin, load the `/updatefirstmate` skill.
 It performs guarded fast-forward updates of firstmate and registered secondmate homes, refreshes instructions, and never touches anything under `projects/`.
 
 ## 13. Agent-only reference skills

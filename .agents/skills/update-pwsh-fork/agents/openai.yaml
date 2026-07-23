@@ -1,0 +1,4 @@
+interface:
+  display_name: "更新 PowerShell Fork"
+  short_description: "同步 upstream 并升级 Windows PowerShell 分支"
+  default_prompt: "Use $update-pwsh-fork to sync upstream and update the Windows PowerShell fork safely."
